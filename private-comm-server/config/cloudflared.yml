@@ -1,0 +1,14 @@
+tunnel: your-tunnel-id
+credentials-file: /root/.cloudflared/your-tunnel-id.json
+
+ingress:
+  - hostname: signal.yourdomain.com
+    service: http://localhost:8000
+    originRequest:
+      noTLSVerify: false
+      connectTimeout: 30s
+
+  - hostname: turn.yourdomain.com
+    service: tcp://localhost:3478
+
+  - service: http_status:404

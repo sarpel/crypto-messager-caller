@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=privcomm
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=privcomm
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./app/database/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - POSTGRES_USER=privcomm
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=privcomm
+    restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn:latest
+    network_mode: host
+    volumes:
+      - ./config/turnserver.conf:/etc/coturn/turnserver.conf
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

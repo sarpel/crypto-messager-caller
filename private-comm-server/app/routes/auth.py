@@ -1,0 +1,67 @@
+from fastapi import APIRouter, HTTPException, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+limiter = Limiter(key_func=get_remote_address)
+router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
+
+SECRET_KEY: Optional[str] = None
+
+
+def set_secret_key(key: str):
+    global SECRET_KEY
+    SECRET_KEY = key
+
+
+def create_access_token(user_id: str) -> str:
+    if not SECRET_KEY:
+        raise RuntimeError("SECRET_KEY not configured")
+
+    payload = {
+        "sub": str(user_id),
+        "iat": datetime.utcnow(),
+        "exp": datetime.utcnow() + timedelta(minutes=5),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+
+def decode_websocket_token(token: str) -> Optional[str]:
+    if not SECRET_KEY:
+        logger.error("SECRET_KEY not configured")
+        return None
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        return user_id
+    except JWTError as e:
+        logger.warning(f"Invalid JWT token: {e}")
+        return None
+
+
+@router.post("/token")
+@limiter.limit("10/minute")
+async def get_websocket_token(request: Request, user_id: str):
+    """Get a short-lived JWT token for WebSocket authentication"""
+    if not SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Server not configured properly")
+
+    token = create_access_token(user_id)
+    return {"token": token, "expires_in": 300}
+
+
+@router.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return HTTPException(
+        status_code=429,
+        detail={"message": "Rate limit exceeded", "retry_after": exc.retry_after},
+    )
