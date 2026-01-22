@@ -34,15 +34,7 @@
       ]
     },
     "plugins": [
-      "expo-dev-client",
-      [
-        "@notifee/react-native",
-        {
-          "android": {
-            "compileSdkVersion": 34
-          }
-        }
-      ]
+      "expo-dev-client"
     ]
   }
 }
