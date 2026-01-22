@@ -70,6 +70,7 @@ class DecryptionError extends Error {
 class SignalProtocolManager {
   private sessionStore: Map<string, string> = new Map();
   private dbInitialized = false;
+  private maintenanceInterval: NodeJS.Timeout | null = null;
 
   private async initDB(): Promise<void> {
     if (this.dbInitialized) {
@@ -301,7 +302,7 @@ class SignalProtocolManager {
   }
 
   async uploadPrekeysToServer(preKeys: Array<{ keyId: number; publicKey: string }>): Promise<void> {
-    const { apiService } = await import('./services/ApiService');
+    const { apiService } = await import('../services/ApiService');
     const userId = await Keychain.getGenericPassword({ service: 'privcomm_identity' });
 
     if (!userId) {
@@ -339,11 +340,21 @@ class SignalProtocolManager {
   async startPrekeyMaintenance(): Promise<void> {
     const REFRESH_INTERVAL = 24 * 60 * 60 * 1000;
 
-    setInterval(() => {
+    // Clear any existing interval
+    this.stopPrekeyMaintenance();
+
+    this.maintenanceInterval = setInterval(() => {
       this.checkAndRefillPrekeys();
     }, REFRESH_INTERVAL);
 
     await this.checkAndRefillPrekeys();
+  }
+
+  stopPrekeyMaintenance(): void {
+    if (this.maintenanceInterval) {
+      clearInterval(this.maintenanceInterval);
+      this.maintenanceInterval = null;
+    }
   }
 }
 

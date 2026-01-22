@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from datetime import datetime
 import logging
 
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 @router.get("/")
 async def health_check():
     """Health check for monitoring and load balancers"""
-    from app.main import db_pool
+    from app.internal.state import db_pool
 
     health = {
         "status": "healthy",
@@ -34,4 +35,4 @@ async def health_check():
 
     status_code = 200 if health["status"] == "healthy" else 503
 
-    return health
+    return JSONResponse(content=health, status_code=status_code)

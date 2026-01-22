@@ -11,8 +11,6 @@ from slowapi.errors import RateLimitExceeded
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api/v1", tags=["registration"])
 
-router = APIRouter(prefix="/api/v1", tags=["registration"])
-
 
 class RegisterRequest(BaseModel):
     phone_hash: str = Field(..., min_length=64, max_length=64)
