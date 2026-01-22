@@ -75,7 +75,7 @@ async def get_websocket_token(request: Request, token_req: TokenRequest):
             "SELECT id FROM users WHERE phone_hash = $1", token_req.phone_hash
         )
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=401, detail="Authorization failed")
 
     user_id = str(user["id"])
     token = create_access_token(user_id)

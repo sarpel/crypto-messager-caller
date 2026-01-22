@@ -7,6 +7,18 @@ import Logger from '../utils/Logger';
 
 const DB_NAME = 'privcomm_sessions.db';
 
+class PrekeyIdCounter {
+  private static counter = Date.now();
+
+  static nextId(): number {
+    return this.counter++;
+  }
+
+  static reset(): void {
+    this.counter = Date.now();
+  }
+}
+
 interface SignalCryptoModule {
   generateIdentityKeyPair(): Promise<{ publicKey: string; privateKey: string }>;
   generateSignedPreKey(privateKey: string, keyId: number): Promise<{
@@ -172,7 +184,7 @@ class SignalProtocolManager {
       throw new Error('SignalCrypto module not available');
     }
 
-    const keyId = Math.floor(Math.random() * 0xFFFFFF);
+    const keyId = PrekeyIdCounter.nextId();
     const result = await SignalCrypto.generateSignedPreKey(identityPrivateKey, keyId);
 
     await Keychain.setGenericPassword(
@@ -202,7 +214,7 @@ class SignalProtocolManager {
     for (let i = 0; i < count; i += BATCH_SIZE) {
       const batch = [];
       for (let j = 0; j < BATCH_SIZE && i + j < count; j++) {
-        const keyId = Date.now() + (i + j);
+        const keyId = PrekeyIdCounter.nextId();
         batch.push({ keyId });
       }
 

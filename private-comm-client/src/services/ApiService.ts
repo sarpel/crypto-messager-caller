@@ -20,6 +20,13 @@ export interface AuthTokenResponse {
   expires_in: number;
 }
 
+export interface TurnCredentialsResponse {
+  urls: string[];
+  username: string;
+  credential: string;
+  ttl?: number;
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -82,6 +89,16 @@ class ApiService {
     return this.request<AuthTokenResponse>(`/api/v1/auth/token?user_id=${userId}`, {
       method: 'POST',
     });
+  }
+
+  async getTurnCredentials(): Promise<TurnCredentialsResponse> {
+    try {
+      return await this.request<TurnCredentialsResponse>('/api/v1/turn-credentials', {
+        method: 'GET',
+      });
+    } catch (error) {
+      throw new Error(`Failed to fetch TURN credentials from server: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   setBaseUrl(url: string): void {

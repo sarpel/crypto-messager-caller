@@ -40,12 +40,23 @@ class WebRTCService extends EventEmitter {
    */
   async fetchTurnCredentials(): Promise<void> {
     try {
-      // TODO: Add endpoint on server to provide TURN credentials
-      // For now, use environment variables or secure config
-      console.log('TURN credentials should be fetched from server');
-      // this.turnCredentials = await apiService.getTurnCredentials();
+      const credentials = await apiService.getTurnCredentials();
+      this.turnCredentials = {
+        urls: credentials.urls,
+        username: credentials.username,
+        credential: credentials.credential,
+      };
+
+      if (credentials.ttl) {
+        const expiryTime = Date.now() + credentials.ttl * 1000;
+        console.log(`TURN credentials loaded, expires at ${new Date(expiryTime).toISOString()}`);
+      } else {
+        console.log('TURN credentials loaded');
+      }
     } catch (error) {
-      console.error('Failed to fetch TURN credentials:', error instanceof Error ? error.name : 'Unknown error');
+      console.error('Failed to fetch TURN credentials from server:', error instanceof Error ? error.message : 'Unknown error');
+      console.warn('TURN server may not be configured - NAT traversal may fail behind restrictive firewalls');
+      this.turnCredentials = null;
     }
   }
 
