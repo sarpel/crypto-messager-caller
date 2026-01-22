@@ -1,12 +1,10 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, validator, Field
-import asyncpg
 from typing import List
 import base64
 import re
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api/v1", tags=["registration"])

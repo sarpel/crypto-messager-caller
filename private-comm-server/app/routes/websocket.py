@@ -1,7 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
-from app.internal.state import manager, db_pool, active_connections
+from app.internal.state import manager, db_pool
 from app.routes.auth import decode_websocket_token
-import json
 import base64
 from datetime import datetime
 import logging

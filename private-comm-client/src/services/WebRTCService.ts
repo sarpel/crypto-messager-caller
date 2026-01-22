@@ -7,7 +7,6 @@ import {
 } from 'react-native-webrtc';
 import { EventEmitter } from 'events';
 import { webSocketService } from './WebSocketService';
-import { apiService } from './ApiService';
 
 export type CallState = 'idle' | 'outgoing' | 'incoming' | 'connected' | 'ended';
 

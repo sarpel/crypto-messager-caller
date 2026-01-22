@@ -1,6 +1,4 @@
-import asyncpg
 import logging
-from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.config import settings
 

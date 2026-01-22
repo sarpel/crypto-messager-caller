@@ -12,8 +12,6 @@ declare global {
   var AesCrypto: AesCryptoModule;
 }
 
-const SESSION_ENCRYPTION_KEY = 'privcomm_session_key_v1';
-
 let encryptionKey: string | null = null;
 
 async function getEncryptionKey(): Promise<string> {
