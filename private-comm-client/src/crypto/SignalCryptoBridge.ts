@@ -1,4 +1,5 @@
 import { NativeModules } from 'react-native';
+import Logger from '../utils/Logger';
 
 const { SignalCrypto: NativeSignalCrypto } = NativeModules;
 
@@ -193,12 +194,12 @@ export function getSignalCrypto(): SignalCryptoModule {
 
   if (NativeSignalCrypto) {
     cryptoInstance = NativeSignalCrypto;
-    console.log('Using native SignalCrypto module');
+    Logger.info('Using native SignalCrypto module');
   } else {
-    console.warn(
+    Logger.warn(
       'Native SignalCrypto module not available. Using mock implementation.'
     );
-    console.warn(
+    Logger.warn(
       'DO NOT USE MOCK IN PRODUCTION - NOT CRYPTOGRAPHICALLY SECURE'
     );
     cryptoInstance = new MockSignalCrypto() as unknown as SignalCryptoModule;

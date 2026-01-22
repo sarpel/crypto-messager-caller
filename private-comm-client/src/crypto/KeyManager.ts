@@ -1,5 +1,6 @@
 import * as Keychain from 'react-native-keychain';
 import { createHash } from 'crypto';
+import Logger from '../utils/Logger';
 
 export class KeyManager {
   private static IDENTITY_SERVICE = 'privcomm_identity';
@@ -42,12 +43,12 @@ export class KeyManager {
         service: this.PREKEY_SERVICE,
       });
       if (!credentials) {
-        console.warn(`Signed prekey ${keyId} not found in keychain`);
+        Logger.warn(`Signed prekey ${keyId} not found in keychain`);
         return null;
       }
       return credentials.password;
     } catch (error) {
-      console.error(`Failed to retrieve signed prekey ${keyId}:`, error);
+      Logger.error(`Failed to retrieve signed prekey ${keyId}:`, error);
       return null;
     }
   }
@@ -69,12 +70,12 @@ export class KeyManager {
         service: this.OTPK_SERVICE,
       });
       if (!credentials) {
-        console.warn(`One-time prekey ${keyId} not found in keychain`);
+        Logger.warn(`One-time prekey ${keyId} not found in keychain`);
         return null;
       }
       return credentials.password;
     } catch (error) {
-      console.error(`Failed to retrieve one-time prekey ${keyId}:`, error);
+      Logger.error(`Failed to retrieve one-time prekey ${keyId}:`, error);
       return null;
     }
   }

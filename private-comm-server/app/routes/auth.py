@@ -27,7 +27,7 @@ def create_access_token(user_id: str) -> str:
     payload = {
         "sub": str(user_id),
         "iat": now,
-        "exp": now + timedelta(minutes=5),
+        "exp": now + timedelta(minutes=30),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
@@ -52,7 +52,7 @@ def decode_websocket_token(token: str) -> Optional[str]:
 @limiter.limit("10/minute")
 async def get_websocket_token(request: Request, phone_hash: str):
     """Get a short-lived JWT token for WebSocket authentication.
-    
+
     Requires phone_hash to verify user exists before issuing token.
     """
     if not SECRET_KEY:
@@ -74,4 +74,4 @@ async def get_websocket_token(request: Request, phone_hash: str):
 
     user_id = str(user["id"])
     token = create_access_token(user_id)
-    return {"token": token, "expires_in": 300, "user_id": user_id}
+    return {"token": token, "expires_in": 1800, "user_id": user_id}

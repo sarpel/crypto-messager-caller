@@ -3,6 +3,7 @@ import * as Keychain from 'react-native-keychain';
 import SQLite from 'react-native-sqlite-storage';
 import { encryptData, decryptData } from './cryptoUtils';
 import { SignalCrypto, isNativeModule } from './SignalCryptoBridge';
+import Logger from '../utils/Logger';
 
 const DB_NAME = 'privcomm_sessions.db';
 
@@ -95,9 +96,9 @@ class SignalProtocolManager {
 
       await this.loadSessions();
       this.dbInitialized = true;
-      console.log('Signal protocol sessions database initialized');
+      Logger.info('Signal protocol sessions database initialized');
     } catch (error) {
-      console.error('Failed to initialize sessions database:', error);
+      Logger.error('Failed to initialize sessions database:', error);
       throw error;
     }
   }
@@ -111,13 +112,13 @@ class SignalProtocolManager {
           const decrypted = await decryptData(row.session_data);
           this.sessionStore.set(row.recipient_id, decrypted);
         } catch (error) {
-          console.error(`Failed to decrypt session for ${row.recipient_id}:`, error);
+          Logger.error(`Failed to decrypt session for ${row.recipient_id}:`, error);
         }
       }
 
-      console.log(`Loaded ${results.rows.length} sessions from database`);
+      Logger.info(`Loaded ${results.rows.length} sessions from database`);
     } catch (error) {
-      console.error('Failed to load sessions:', error);
+      Logger.error('Failed to load sessions:', error);
     }
   }
 
@@ -134,7 +135,7 @@ class SignalProtocolManager {
         [recipientId, encrypted]
       );
     } catch (error) {
-      console.error(`Failed to save session for ${recipientId}:`, error);
+      Logger.error(`Failed to save session for ${recipientId}:`, error);
     }
   }
 
@@ -196,18 +197,29 @@ class SignalProtocolManager {
     }
 
     const preKeys: Array<{ keyId: number; publicKey: string }> = [];
+    const BATCH_SIZE = 10; // Process in batches to prevent UI blocking
 
-    for (let i = 0; i < count; i++) {
-      const keyId = Date.now() + i;
-      const keyPair = await SignalCrypto.generatePreKey(keyId);
+    for (let i = 0; i < count; i += BATCH_SIZE) {
+      const batch = [];
+      for (let j = 0; j < BATCH_SIZE && i + j < count; j++) {
+        const keyId = Date.now() + (i + j);
+        batch.push({ keyId });
+      }
 
-      await Keychain.setGenericPassword(
-        `onetime_prekey_${keyId}`,
-        keyPair.privateKey,
-        { service: 'privcomm_otpk' }
+      // Generate keys in parallel within batch
+      const batchResults = await Promise.all(
+        batch.map(async ({ keyId }) => {
+          const keyPair = await SignalCrypto.generatePreKey(keyId);
+          await Keychain.setGenericPassword(
+            `onetime_prekey_${keyId}`,
+            keyPair.privateKey,
+            { service: 'privcomm_otpk' }
+          );
+          return { keyId, publicKey: keyPair.publicKey };
+        })
       );
 
-      preKeys.push({ keyId, publicKey: keyPair.publicKey });
+      preKeys.push(...batchResults);
     }
 
     return preKeys;
@@ -322,18 +334,18 @@ class SignalProtocolManager {
     const currentCount = await this.getAvailablePrekeyCount();
 
     if (currentCount < 20) {
-      console.log(`Prekey count low (${currentCount}), generating 100 more...`);
+      Logger.info(`Prekey count low (${currentCount}), generating 100 more...`);
       const newPreKeys = await this.generateOneTimePreKeys(100);
 
       try {
         await this.uploadPrekeysToServer(newPreKeys);
-        console.log(`Uploaded ${newPreKeys.length} new prekeys to server`);
+        Logger.info(`Uploaded ${newPreKeys.length} new prekeys to server`);
       } catch (error) {
-        console.error('Failed to upload prekeys:', error);
+        Logger.error('Failed to upload prekeys:', error);
         throw error;
       }
     } else {
-      console.log(`Prekey count OK: ${currentCount}`);
+      Logger.info(`Prekey count OK: ${currentCount}`);
     }
   }
 

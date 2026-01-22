@@ -1,4 +1,4 @@
-from fastapi import WebSocket
+from fastapi import WebSocket, HTTPException
 from typing import Dict, Optional
 import asyncpg
 import asyncio
@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 # Global state
 db_pool: Optional[asyncpg.Pool] = None
 active_connections: Dict[str, WebSocket] = {}
+MAX_CONNECTIONS = 10000
 
 
 def set_db_pool(pool: asyncpg.Pool) -> None:
@@ -24,11 +25,17 @@ class ConnectionManager:
     async def connect(self, user_id: str, websocket: WebSocket):
         await websocket.accept()
         async with self._lock:
+            if len(active_connections) >= MAX_CONNECTIONS:
+                await websocket.close(code=1013, reason="Server at capacity")
+                raise HTTPException(status_code=503, detail="Server at capacity")
+
             if user_id in active_connections:
                 try:
                     await active_connections[user_id].close()
-                except Exception:
-                    pass
+                except (ConnectionError, RuntimeError) as e:
+                    logger.debug(
+                        f"Error closing stale connection for {user_id[:8]}...: {type(e).__name__}"
+                    )
             active_connections[user_id] = websocket
         logger.info(f"User {user_id[:8]}... connected")
 
@@ -42,12 +49,13 @@ class ConnectionManager:
         # Get connection while holding lock, then send outside lock
         async with self._lock:
             ws = active_connections.get(user_id)
-        
+
         if ws:
             try:
                 await ws.send_json(message)
                 return True
-            except Exception:
+            except (ConnectionError, RuntimeError) as e:
+                logger.debug(f"Send failed for {user_id[:8]}...: {type(e).__name__}")
                 return False
         return False
 
