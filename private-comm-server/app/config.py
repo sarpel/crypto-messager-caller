@@ -6,9 +6,7 @@ class Settings:
     DB_HOST: str = os.getenv("DB_HOST", "localhost")
     DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
     DB_USER: str = os.getenv("DB_USER", "privcomm")
-    DB_PASSWORD: str = os.getenv(
-        "DB_PASSWORD", "secure_password"
-    )  # Must be overridden in production
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
     DB_NAME: str = os.getenv("DB_NAME", "privcomm")
 
     CLOUDFLARE_TUNNEL_ID: Optional[str] = os.getenv("CLOUDFLARE_TUNNEL_ID")
