@@ -1,8 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from typing import Optional
 import logging
@@ -24,10 +23,11 @@ def create_access_token(user_id: str) -> str:
     if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY not configured")
 
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
-        "iat": datetime.utcnow(),
-        "exp": datetime.utcnow() + timedelta(minutes=5),
+        "iat": now,
+        "exp": now + timedelta(minutes=5),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
@@ -50,18 +50,28 @@ def decode_websocket_token(token: str) -> Optional[str]:
 
 @router.post("/token")
 @limiter.limit("10/minute")
-async def get_websocket_token(request: Request, user_id: str):
-    """Get a short-lived JWT token for WebSocket authentication"""
+async def get_websocket_token(request: Request, phone_hash: str):
+    """Get a short-lived JWT token for WebSocket authentication.
+    
+    Requires phone_hash to verify user exists before issuing token.
+    """
     if not SECRET_KEY:
         raise HTTPException(status_code=500, detail="Server not configured properly")
 
+    # Import here to avoid circular imports
+    from app.internal.state import db_pool
+
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    # Verify user exists before issuing token
+    async with db_pool.acquire() as conn:
+        user = await conn.fetchrow(
+            "SELECT id FROM users WHERE phone_hash = $1", phone_hash
+        )
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+    user_id = str(user["id"])
     token = create_access_token(user_id)
-    return {"token": token, "expires_in": 300}
-
-
-@router.exception_handler(RateLimitExceeded)
-async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    return HTTPException(
-        status_code=429,
-        detail={"message": "Rate limit exceeded", "retry_after": exc.retry_after},
-    )
+    return {"token": token, "expires_in": 300, "user_id": user_id}

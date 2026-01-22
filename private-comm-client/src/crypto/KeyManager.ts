@@ -52,23 +52,6 @@ export class KeyManager {
     }
   }
 
-  static async getOneTimePreKey(keyId: number): Promise<string | null> {
-    try {
-      const credentials = await Keychain.getGenericPassword({
-        service: this.OTPK_SERVICE,
-      });
-      if (!credentials) {
-        console.warn(`One-time prekey ${keyId} not found in keychain`);
-        return null;
-      }
-      return credentials.password;
-    } catch (error) {
-      console.error(`Failed to retrieve one-time prekey ${keyId}:`, error);
-      return null;
-    }
-  }
-  }
-
   static async storeOneTimePreKey(
     keyId: number,
     privateKey: string
@@ -85,9 +68,13 @@ export class KeyManager {
       const credentials = await Keychain.getGenericPassword({
         service: this.OTPK_SERVICE,
       });
-      if (!credentials) return null;
+      if (!credentials) {
+        console.warn(`One-time prekey ${keyId} not found in keychain`);
+        return null;
+      }
       return credentials.password;
-    } catch {
+    } catch (error) {
+      console.error(`Failed to retrieve one-time prekey ${keyId}:`, error);
       return null;
     }
   }
@@ -108,7 +95,9 @@ export class KeyManager {
     for (const service of services) {
       try {
         await Keychain.resetGenericPassword({ service });
-      } catch {}
+      } catch {
+        // Ignore errors when deleting keys
+      }
     }
 
     return true;

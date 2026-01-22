@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { EventEmitter } from 'events';
 import { apiService } from './ApiService';
 
@@ -162,7 +163,5 @@ class WebSocketService extends EventEmitter {
     return this.state === 'connected';
   }
 }
-
-import { Platform } from 'react-native';
 
 export const webSocketService = new WebSocketService();

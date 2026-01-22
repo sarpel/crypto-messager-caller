@@ -7,27 +7,19 @@ import {
 } from 'react-native-webrtc';
 import { EventEmitter } from 'events';
 import { webSocketService } from './WebSocketService';
-
-const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:turn.yourdomain.com:3478' },
-  {
-    urls: 'turn:turn.yourdomain.com:3478',
-    username: 'turnuser',
-    credential: 'turnpassword',
-  },
-  {
-    urls: 'turns:turn.yourdomain.com:5349',
-    username: 'turnuser',
-    credential: 'turnpassword',
-  },
-];
+import { apiService } from './ApiService';
 
 export type CallState = 'idle' | 'outgoing' | 'incoming' | 'connected' | 'ended';
 
 export interface CallCallbacks {
   onStateChange: (state: CallState) => void;
   onRemoteStream: (stream: MediaStream) => void;
+}
+
+export interface TurnCredentials {
+  urls: string[];
+  username: string;
+  credential: string;
 }
 
 class WebRTCService extends EventEmitter {
@@ -37,14 +29,51 @@ class WebRTCService extends EventEmitter {
   private currentCallId: string | null = null;
   private state: CallState = 'idle';
   private callbacks: CallCallbacks | null = null;
+  private turnCredentials: TurnCredentials | null = null;
 
   setCallbacks(callbacks: CallCallbacks): void {
     this.callbacks = callbacks;
   }
 
+  /**
+   * Fetch TURN credentials from the server
+   * This should be called before initiating calls
+   */
+  async fetchTurnCredentials(): Promise<void> {
+    try {
+      // TODO: Add endpoint on server to provide TURN credentials
+      // For now, use environment variables or secure config
+      console.log('TURN credentials should be fetched from server');
+      // this.turnCredentials = await apiService.getTurnCredentials();
+    } catch (error) {
+      console.error('Failed to fetch TURN credentials:', error);
+    }
+  }
+
+  private getIceServers(): RTCConfiguration['iceServers'] {
+    const servers: RTCConfiguration['iceServers'] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+    ];
+
+    // Add TURN servers if credentials are available
+    if (this.turnCredentials) {
+      for (const url of this.turnCredentials.urls) {
+        servers.push({
+          urls: url,
+          username: this.turnCredentials.username,
+          credential: this.turnCredentials.credential,
+        });
+      }
+    } else {
+      console.warn('TURN credentials not loaded - NAT traversal may fail');
+    }
+
+    return servers;
+  }
+
   private async createPeerConnection(): Promise<RTCPeerConnection> {
     const pc = new RTCPeerConnection({
-      iceServers: ICE_SERVERS,
+      iceServers: this.getIceServers(),
       iceCandidatePoolSize: 10,
     });
 
@@ -92,6 +121,11 @@ class WebRTCService extends EventEmitter {
   async startCall(recipientId: string): Promise<void> {
     if (this.state !== 'idle') {
       throw new Error(`Cannot start call in state: ${this.state}`);
+    }
+
+    // Ensure TURN credentials are loaded
+    if (!this.turnCredentials) {
+      await this.fetchTurnCredentials();
     }
 
     try {
@@ -142,6 +176,11 @@ class WebRTCService extends EventEmitter {
       console.warn('Rejecting call - already in a call');
       this.sendReject(senderId);
       return;
+    }
+
+    // Ensure TURN credentials are loaded
+    if (!this.turnCredentials) {
+      await this.fetchTurnCredentials();
     }
 
     try {
@@ -273,6 +312,13 @@ class WebRTCService extends EventEmitter {
 
   getRemoteStream(): MediaStream | null {
     return this.remoteStream;
+  }
+
+  /**
+   * Set TURN credentials manually (for testing or alternative configuration)
+   */
+  setTurnCredentials(credentials: TurnCredentials): void {
+    this.turnCredentials = credentials;
   }
 }
 
