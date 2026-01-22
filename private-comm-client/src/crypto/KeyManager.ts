@@ -93,15 +93,18 @@ export class KeyManager {
       this.OTPK_SERVICE,
     ];
 
+    let allSucceeded = true;
+
     for (const service of services) {
       try {
         await Keychain.resetGenericPassword({ service });
-      } catch {
-        // Ignore errors when deleting keys
+      } catch (error) {
+        Logger.error(`Failed to delete keys for service ${service}:`, error);
+        allSucceeded = false;
       }
     }
 
-    return true;
+    return allSucceeded;
   }
 
   static hashPhoneNumber(phoneNumber: string, salt: string = 'privcomm-salt'): string {

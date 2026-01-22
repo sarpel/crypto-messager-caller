@@ -13,7 +13,6 @@ import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
-import com.facebook.react.flipper.ReactNativeFlipper
 import com.facebook.soloader.SoLoader
 
 import expo.modules.ApplicationLifecycleDispatcher
@@ -52,9 +51,8 @@ class MainApplication : Application(), ReactApplication {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
-    if (BuildConfig.DEBUG) {
-      ReactNativeFlipper.initializeFlipper(this, reactNativeHost.reactInstanceManager)
-    }
+    // Flipper removed - ReactNativeFlipper is deprecated and will break on RN >= 0.74
+    // If you need Flipper, follow the official manual installation guide: https://fbflipper.com/docs/
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
   }
 

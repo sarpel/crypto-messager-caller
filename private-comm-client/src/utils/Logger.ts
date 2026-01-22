@@ -5,8 +5,15 @@ export enum LogLevel {
   ERROR = 'error',
 }
 
+interface ErrorEntry {
+  message: string;
+  error?: string;
+  timestamp: number;
+}
+
 class Logger {
   private static isDevelopment = __DEV__;
+  private static errorsQueue: ErrorEntry[] = [];
 
   static debug(message: string, ...args: any[]) {
     if (this.isDevelopment) {
@@ -31,8 +38,26 @@ class Logger {
       console.error(message, error, ...args);
     }
 
-    // TODO: In production, send to error tracking service (e.g., Sentry)
-    // This would strip sensitive fields before sending
+    // In production, enqueue error for later sending to error tracking service
+    if (!this.isDevelopment) {
+      const errorStr = error instanceof Error ? error.message : String(error);
+      this.errorsQueue.push({
+        message,
+        error: errorStr,
+        timestamp: Date.now(),
+      });
+      console.error(`[ERROR] ${message}`);
+    }
+  }
+
+  static flushErrors(): ErrorEntry[] {
+    const errors = [...this.errorsQueue];
+    this.errorsQueue = [];
+    return errors;
+  }
+
+  static getErrorsCount(): number {
+    return this.errorsQueue.length;
   }
 }
 

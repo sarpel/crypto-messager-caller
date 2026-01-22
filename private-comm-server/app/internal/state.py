@@ -23,11 +23,10 @@ class ConnectionManager:
         self._lock = asyncio.Lock()
 
     async def connect(self, user_id: str, websocket: WebSocket):
-        await websocket.accept()
         async with self._lock:
             if len(active_connections) >= MAX_CONNECTIONS:
                 await websocket.close(code=1013, reason="Server at capacity")
-                raise HTTPException(status_code=503, detail="Server at capacity")
+                return
 
             if user_id in active_connections:
                 try:
@@ -37,6 +36,8 @@ class ConnectionManager:
                         f"Error closing stale connection for {user_id[:8]}...: {type(e).__name__}"
                     )
             active_connections[user_id] = websocket
+
+        await websocket.accept()
         logger.info(f"User {user_id[:8]}... connected")
 
     async def disconnect(self, user_id: str):

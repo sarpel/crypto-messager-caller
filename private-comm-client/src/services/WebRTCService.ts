@@ -45,7 +45,7 @@ class WebRTCService extends EventEmitter {
       console.log('TURN credentials should be fetched from server');
       // this.turnCredentials = await apiService.getTurnCredentials();
     } catch (error) {
-      console.error('Failed to fetch TURN credentials:', error);
+      console.error('Failed to fetch TURN credentials:', error instanceof Error ? error.name : 'Unknown error');
     }
   }
 

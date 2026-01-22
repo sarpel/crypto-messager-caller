@@ -1,1 +1,4 @@
-<resources/>
+<resources>
+  <color name="textPrimary">#ffffff</color>
+  <color name="textHint">#9e9e9e</color>
+</resources>

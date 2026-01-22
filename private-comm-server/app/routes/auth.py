@@ -4,6 +4,7 @@ from slowapi.util import get_remote_address
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from typing import Optional
+from pydantic import BaseModel, Field
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,9 +49,13 @@ def decode_websocket_token(token: str) -> Optional[str]:
         return None
 
 
+class TokenRequest(BaseModel):
+    phone_hash: str = Field(..., min_length=64, max_length=64)
+
+
 @router.post("/token")
 @limiter.limit("10/minute")
-async def get_websocket_token(request: Request, phone_hash: str):
+async def get_websocket_token(request: Request, token_req: TokenRequest):
     """Get a short-lived JWT token for WebSocket authentication.
 
     Requires phone_hash to verify user exists before issuing token.
@@ -67,7 +72,7 @@ async def get_websocket_token(request: Request, phone_hash: str):
     # Verify user exists before issuing token
     async with db_pool.acquire() as conn:
         user = await conn.fetchrow(
-            "SELECT id FROM users WHERE phone_hash = $1", phone_hash
+            "SELECT id FROM users WHERE phone_hash = $1", token_req.phone_hash
         )
         if not user:
             raise HTTPException(status_code=404, detail="User not found")

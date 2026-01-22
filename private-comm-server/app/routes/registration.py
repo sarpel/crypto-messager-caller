@@ -20,8 +20,8 @@ class RegisterRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_prekey_count(cls, data):
-        if "one_time_prekeys" in data:
-            prekeys = data["one_time_prekeys"]
+        if hasattr(data, "one_time_prekeys"):
+            prekeys = getattr(data, "one_time_prekeys")
             if len(prekeys) < 1:
                 raise ValueError("one_time_prekeys must have at least 1 entry")
             if len(prekeys) > 200:
