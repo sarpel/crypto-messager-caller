@@ -1,0 +1,98 @@
+# Private Communication Platform - Root .gitignore
+# This file ignores common patterns and includes project-specific sub-gitignores
+
+# Build artifacts
+*.egg-info/
+*.pyc
+__pycache__/
+.eggs/
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+credentials/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Node modules (for client)
+node_modules/
+
+# Python
+venv/
+env/
+ENV/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Docker
+*.pid
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Bundle artifacts
+.expo/
+.expo-shared/
+dist-web/
+*.jks
+*.p8
+*.p12
+*.keystore
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# Package manager locks (keep these!)
+# !package-lock.json
+# !yarn.lock
+# !poetry.lock
+
+# Planning and AI agent files
+.planning/

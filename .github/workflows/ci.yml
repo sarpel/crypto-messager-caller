@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  server-test:
+    name: Server Tests (Python)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd private-comm-server
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run linter (Ruff)
+        run: |
+          cd private-comm-server
+          pip install ruff
+          ruff check app/
+
+      - name: Run tests
+        run: |
+          cd private-comm-server
+          pip install pytest pytest-cov
+          pytest tests/ -v --cov=app --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./private-comm-server/coverage.xml
+          flags: server
+
+  client-test:
+    name: Client Tests (TypeScript)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          cd private-comm-client
+          npm ci
+
+      - name: Run linter (ESLint)
+        run: |
+          cd private-comm-client
+          npm run lint || echo "Lint script not found"
+
+      - name: Run tests
+        run: |
+          cd private-comm-client
+          npm test -- --coverage --watchAll=false
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./private-comm-client/coverage/lcov.info
+          flags: client

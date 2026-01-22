@@ -1,0 +1,125 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Source code
+*.py text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.md text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# Configuration files
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+.eslintrc* text eol=lf
+.prettierrc* text eol=lf
+tsconfig.json text eol=lf
+
+# Gradle (CRLF on Windows, LF on Unix)
+*.gradle text eol=crlf
+gradlew text eol=crlf
+
+# Shell scripts (must be LF)
+*.sh text eol=lf
+
+# Batch scripts (must be CRLF)
+*.bat text eol=crlf
+
+# Windows specific files
+*.sln text eol=crlf
+*.csproj text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.jar binary
+*.war binary
+*.ear binary
+*.keystore binary
+*.jks binary
+*.p12 binary
+*.p8 binary
+*.mobileprovision binary
+
+# Fonts
+*.otf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+
+# Audio/Video
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.webm binary
+*.ogg binary
+
+# Database
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Keys and certificates (should be gitignored anyway, but marked as binary)
+*.key binary
+*.pem binary
+*.crt binary
+*.cer binary
+*.der binary
+
+# Archives
+*.tar.gz binary
+*.tgz binary
+*.zip binary
+*.rar binary
+*.7z binary
+
+# OS-specific
+.DS_Store export-ignore
+Thumbs.db export-ignore
+desktop.ini export-ignore
+
+# IDE-specific
+.idea/ export-ignore
+.vscode/ export-ignore
+*.swp export-ignore
+*.swo export-ignore
+*~ export-ignore
+
+# Build artifacts
+*.pyc export-ignore
+__pycache__/ export-ignore
+node_modules/ export-ignore
+build/ export-ignore
+dist/ export-ignore
+target/ export-ignore
+.env* export-ignore
+*.log export-ignore
+
+# LSP/AI files
+.planning/ export-ignore
+.ruff_cache/ export-ignore
+.pytest_cache/ export-ignore
+
+# Encryption keys (CRITICAL - should never be committed)
+config/secrets.py export-ignore
+*.key export-ignore
+*.pem export-ignore
