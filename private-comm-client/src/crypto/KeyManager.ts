@@ -107,7 +107,7 @@ export class KeyManager {
     return allSucceeded;
   }
 
-  static hashPhoneNumber(phoneNumber: string, salt: string = 'privcomm-salt'): string {
+  static hashPhoneNumber(phoneNumber: string, salt: string): string {
     const hash = createHash('sha256');
     hash.update(phoneNumber + salt);
     return hash.digest('hex');
@@ -116,5 +116,26 @@ export class KeyManager {
   static async hasKeys(): Promise<boolean> {
     const identityKey = await this.getIdentityKey();
     return identityKey !== null;
+  }
+
+  static async generateAuthSignature(phoneHash: string): Promise<{
+    nonce: string;
+    signature: string;
+  }> {
+    const { SignalCrypto } = await import('./SignalCryptoBridge');
+
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+
+    const nonce = Buffer.from(array).toString('hex');
+
+    const identityKey = await this.getIdentityKey();
+    if (!identityKey) {
+      throw new Error('Identity key not found');
+    }
+
+    const signature = await SignalCrypto.signMessage(identityKey, nonce);
+
+    return { nonce, signature };
   }
 }

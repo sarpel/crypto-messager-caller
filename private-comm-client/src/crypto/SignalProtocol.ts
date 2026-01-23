@@ -119,12 +119,20 @@ class SignalProtocolManager {
     try {
       const [results] = await SQLite.executeSql('SELECT * FROM sessions');
 
-      for (const row of results.rows.raw()) {
+      const sessionPromises = results.rows.raw().map(async (row) => {
         try {
           const decrypted = await decryptData(row.session_data);
-          this.sessionStore.set(row.recipient_id, decrypted);
+          return { recipientId: row.recipient_id, session: decrypted };
         } catch (error) {
           Logger.error(`Failed to decrypt session for ${row.recipient_id}:`, error);
+          return null;
+        }
+      });
+
+      const sessions = await Promise.all(sessionPromises);
+      for (const s of sessions) {
+        if (s) {
+          this.sessionStore.set(s.recipientId, s.session);
         }
       }
 

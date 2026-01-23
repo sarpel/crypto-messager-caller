@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from typing import Optional
 from pydantic import BaseModel, Field
 import logging
+import ed25519
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,17 @@ SECRET_KEY: Optional[str] = None
 def set_secret_key(key: str):
     global SECRET_KEY
     SECRET_KEY = key
+
+
+def verify_ed25519_signature(
+    public_key_bytes: bytes, message: bytes, signature_bytes: bytes
+) -> bool:
+    try:
+        public_key = ed25519.VerifyingKey(public_key_bytes)
+        return public_key.verify(signature_bytes, message)
+    except Exception:
+        logger.warning("Signature verification failed")
+        return False
 
 
 def create_access_token(user_id: str) -> str:
@@ -51,6 +63,8 @@ def decode_websocket_token(token: str) -> Optional[str]:
 
 class TokenRequest(BaseModel):
     phone_hash: str = Field(..., min_length=64, max_length=64)
+    nonce: str = Field(..., min_length=32, max_length=64)
+    signature: str = Field(..., min_length=128, max_length=128)
 
 
 @router.post("/token")
@@ -58,7 +72,8 @@ class TokenRequest(BaseModel):
 async def get_websocket_token(request: Request, token_req: TokenRequest):
     """Get a short-lived JWT token for WebSocket authentication.
 
-    Requires phone_hash to verify user exists before issuing token.
+    Requires phone_hash, nonce, and signature proving ownership of identity key.
+    Client signs the nonce with their Ed25519 private key.
     """
     if not SECRET_KEY:
         raise HTTPException(status_code=500, detail="Server not configured properly")
@@ -69,14 +84,32 @@ async def get_websocket_token(request: Request, token_req: TokenRequest):
     if not db_pool:
         raise HTTPException(status_code=503, detail="Database not available")
 
-    # Verify user exists before issuing token
     async with db_pool.acquire() as conn:
         user = await conn.fetchrow(
-            "SELECT id FROM users WHERE phone_hash = $1", token_req.phone_hash
+            "SELECT id, identity_key FROM users WHERE phone_hash = $1",
+            token_req.phone_hash,
         )
         if not user:
-            raise HTTPException(status_code=401, detail="Authorization failed")
+            raise HTTPException(status_code=401, detail="User not found")
 
-    user_id = str(user["id"])
-    token = create_access_token(user_id)
-    return {"token": token, "expires_in": 1800, "user_id": user_id}
+        try:
+            signature_bytes = bytes.fromhex(token_req.signature)
+            message_bytes = token_req.nonce.encode("utf-8")
+
+            if not verify_ed25519_signature(
+                user["identity_key"], message_bytes, signature_bytes
+            ):
+                logger.warning(
+                    f"Invalid signature for user {token_req.phone_hash[:8]}..."
+                )
+                raise HTTPException(status_code=401, detail="Invalid signature")
+
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid signature format")
+        except Exception as e:
+            logger.error(f"Signature verification error: {e}")
+            raise HTTPException(status_code=500, detail="Verification failed")
+
+        user_id = str(user["id"])
+        token = create_access_token(user_id)
+        return {"token": token, "expires_in": 1800, "user_id": user_id}

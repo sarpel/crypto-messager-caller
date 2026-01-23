@@ -19,10 +19,19 @@ class WebSocketService extends EventEmitter {
 
   constructor() {
     super();
+    const isProduction = process.env.NODE_ENV === 'production';
+    const protocol = isProduction ? 'wss' : 'ws';
+    const apiHost = isProduction
+      ? 'your-domain.com'
+      : Platform.select({
+          ios: 'localhost:8000',
+          android: '10.0.2.2:8000',
+          default: 'localhost:8000/ws',
+        });
     this.url = Platform.select({
-      ios: 'ws://localhost:8000/ws',
-      android: 'ws://10.0.2.2:8000/ws',
-      default: 'ws://localhost:8000/ws',
+      ios: `${protocol}://localhost:8000/ws`,
+      android: `${protocol}://10.0.2.2:8000/ws`,
+      default: `${protocol}://localhost:8000/ws`,
     });
   }
 

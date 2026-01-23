@@ -6,11 +6,21 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=privcomm
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-privcomm}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=privcomm
+      - DB_NAME=${DB_NAME:-privcomm}
+      - SECRET_KEY=${SECRET_KEY}
+      - TURN_USERNAME=${TURN_USERNAME}
+      - TURN_PASSWORD=${TURN_PASSWORD}
+      - TURN_HOST=${TURN_HOST}
+      - TURN_PORT=${TURN_PORT:-3478}
+      - TURN_TLS_PORT=${TURN_TLS_PORT:-5349}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DB_POOL_MIN_SIZE=${DB_POOL_MIN_SIZE:-5}
+      - DB_POOL_MAX_SIZE=${DB_POOL_MAX_SIZE:-20}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:19006}
     depends_on:
       - postgres
     restart: unless-stopped
@@ -21,9 +31,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./app/database/schema.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
-      - POSTGRES_USER=privcomm
+      - POSTGRES_USER=${DB_USER:-privcomm}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=privcomm
+      - POSTGRES_DB=${DB_NAME:-privcomm}
     restart: unless-stopped
 
   coturn:

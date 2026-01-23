@@ -33,6 +33,7 @@ interface SignalCryptoModule {
     plaintext: string;
     updatedSession: string;
   }>;
+  signMessage(privateKey: string, message: string): Promise<string>;
 }
 
 declare global {
@@ -115,10 +116,15 @@ class MockSignalCrypto {
 
     const ciphertext = this.mockEncrypt(plaintext);
 
+    const array = new Uint8Array(4);
+    crypto.getRandomValues(array);
+    const randomValue = new DataView(array.buffer).getUint32(0);
+    const registrationId = randomValue >>> 0;
+
     return {
       ciphertext: ciphertext,
       messageType: 2,
-      registrationId: Math.floor(Math.random() * 0xFFFFFF),
+      registrationId,
       updatedSession: Buffer.from(JSON.stringify(sessionObj)).toString('base64'),
     };
   }
@@ -183,6 +189,15 @@ class MockSignalCrypto {
     const data = encrypted.slice(16);
     return data.toString('utf8');
   }
+
+  async signMessage(privateKey: string, message: string): Promise<string> {
+    await this.delay(10);
+
+    const array = new Uint8Array(64);
+    crypto.getRandomValues(array);
+
+    return Buffer.from(array).toString('hex');
+  }
 }
 
 let cryptoInstance: SignalCryptoModule | null = null;
@@ -196,13 +211,10 @@ export function getSignalCrypto(): SignalCryptoModule {
     cryptoInstance = NativeSignalCrypto;
     Logger.info('Using native SignalCrypto module');
   } else {
-    Logger.warn(
-      'Native SignalCrypto module not available. Using mock implementation.'
+    throw new Error(
+      'Native SignalCrypto module is required for production. ' +
+      'Ensure react-native-signal-lib is properly installed and configured.'
     );
-    Logger.warn(
-      'DO NOT USE MOCK IN PRODUCTION - NOT CRYPTOGRAPHICALLY SECURE'
-    );
-    cryptoInstance = new MockSignalCrypto() as unknown as SignalCryptoModule;
   }
 
   return cryptoInstance;

@@ -81,20 +81,27 @@ cd private-comm-server
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env and set required variables:
+# - DB_PASSWORD (required)
+# - SECRET_KEY (required)
+# - TURN_USERNAME, TURN_PASSWORD, TURN_HOST (required for calls)
+
 # Install dependencies
 pip install -r requirements.txt
 
-# Start PostgreSQL
-docker-compose up -d postgres
+# Start PostgreSQL and API with Docker Compose
+docker-compose up -d
 
-# Run migrations
-alembic upgrade head
-
-# Start server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Or start services individually:
+# docker-compose up -d postgres  # Start PostgreSQL only
+# uvicorn app.main:app --reload --host 0.0.0.0 --port 8000  # Start API locally
 ```
 
 Server will run at: `http://localhost:8000`
+
+**Note**: Docker Compose reads all environment variables from the `.env` file. No configuration is hardcoded in `docker-compose.yml`.
 
 ### Client Setup
 
@@ -269,13 +276,46 @@ Once server is running, visit:
 ## Environment Variables
 
 ### Server (`.env`)
+
+The server configuration is managed through environment variables, which are automatically loaded by Docker Compose from the `.env` file.
+
 ```bash
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost/privcomm
-SECRET_KEY=your-secret-key-here
-TURN_SERVER_URL=turn:turn.yourdomain.com:3478
-TURN_USERNAME=turnuser
-TURN_PASSWORD=turnpassword
+# Database Configuration
+DB_HOST=localhost                    # Default: postgres (Docker network)
+DB_PORT=5432                         # Default: 5432
+DB_USER=privcomm                     # Default: privcomm
+DB_PASSWORD=                         # REQUIRED: Set your database password
+DB_NAME=privcomm                     # Default: privcomm
+
+# Database Connection Pool
+DB_POOL_MIN_SIZE=5                   # Default: 5
+DB_POOL_MAX_SIZE=20                  # Default: 20
+
+# Authentication
+SECRET_KEY=your-jwt-secret-key-here-change-in-production  # REQUIRED
+
+# TURN Server Configuration (for voice calls)
+TURN_USERNAME=turnuser               # REQUIRED for calls
+TURN_PASSWORD=your-turn-password-here-change-in-production  # REQUIRED for calls
+TURN_HOST=turn.yourdomain.com        # REQUIRED for calls
+TURN_PORT=3478                       # Default: 3478
+TURN_TLS_PORT=5349                   # Default: 5349
+
+# Environment
+ENVIRONMENT=development              # Default: development
+
+# CORS Origins (comma-separated)
+CORS_ORIGINS=http://localhost:19006  # Default: http://localhost:19006
+
+# Cloudflare Tunnel (optional)
+CLOUDFLARE_TUNNEL_ID=
+CLOUDFLARE_CREDENTIALS_FILE=/root/.cloudflared/your-tunnel-id.json
 ```
+
+**Docker Compose Configuration**:
+- All values in `docker-compose.yml` reference these environment variables using `${VAR_NAME}` or `${VAR_NAME:-default}` syntax
+- Variables without defaults (`DB_PASSWORD`, `SECRET_KEY`, TURN credentials) must be set in `.env`
+- Variables with defaults will use the default value if not set in `.env`
 
 ### Client (`.env`)
 ```bash
