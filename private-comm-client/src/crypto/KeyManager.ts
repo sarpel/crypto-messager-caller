@@ -1,5 +1,6 @@
 import * as Keychain from 'react-native-keychain';
 import { createHash } from 'crypto';
+import Logger from '../utils/Logger';
 
 export class KeyManager {
   private static IDENTITY_SERVICE = 'privcomm_identity';
@@ -42,31 +43,14 @@ export class KeyManager {
         service: this.PREKEY_SERVICE,
       });
       if (!credentials) {
-        console.warn(`Signed prekey ${keyId} not found in keychain`);
+        Logger.warn(`Signed prekey ${keyId} not found in keychain`);
         return null;
       }
       return credentials.password;
     } catch (error) {
-      console.error(`Failed to retrieve signed prekey ${keyId}:`, error);
+      Logger.error(`Failed to retrieve signed prekey ${keyId}:`, error);
       return null;
     }
-  }
-
-  static async getOneTimePreKey(keyId: number): Promise<string | null> {
-    try {
-      const credentials = await Keychain.getGenericPassword({
-        service: this.OTPK_SERVICE,
-      });
-      if (!credentials) {
-        console.warn(`One-time prekey ${keyId} not found in keychain`);
-        return null;
-      }
-      return credentials.password;
-    } catch (error) {
-      console.error(`Failed to retrieve one-time prekey ${keyId}:`, error);
-      return null;
-    }
-  }
   }
 
   static async storeOneTimePreKey(
@@ -85,9 +69,13 @@ export class KeyManager {
       const credentials = await Keychain.getGenericPassword({
         service: this.OTPK_SERVICE,
       });
-      if (!credentials) return null;
+      if (!credentials) {
+        Logger.warn(`One-time prekey ${keyId} not found in keychain`);
+        return null;
+      }
       return credentials.password;
-    } catch {
+    } catch (error) {
+      Logger.error(`Failed to retrieve one-time prekey ${keyId}:`, error);
       return null;
     }
   }
@@ -105,16 +93,21 @@ export class KeyManager {
       this.OTPK_SERVICE,
     ];
 
+    let allSucceeded = true;
+
     for (const service of services) {
       try {
         await Keychain.resetGenericPassword({ service });
-      } catch {}
+      } catch (error) {
+        Logger.error(`Failed to delete keys for service ${service}:`, error);
+        allSucceeded = false;
+      }
     }
 
-    return true;
+    return allSucceeded;
   }
 
-  static hashPhoneNumber(phoneNumber: string, salt: string = 'privcomm-salt'): string {
+  static hashPhoneNumber(phoneNumber: string, salt: string): string {
     const hash = createHash('sha256');
     hash.update(phoneNumber + salt);
     return hash.digest('hex');
@@ -123,5 +116,26 @@ export class KeyManager {
   static async hasKeys(): Promise<boolean> {
     const identityKey = await this.getIdentityKey();
     return identityKey !== null;
+  }
+
+  static async generateAuthSignature(phoneHash: string): Promise<{
+    nonce: string;
+    signature: string;
+  }> {
+    const { SignalCrypto } = await import('./SignalCryptoBridge');
+
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+
+    const nonce = Buffer.from(array).toString('hex');
+
+    const identityKey = await this.getIdentityKey();
+    if (!identityKey) {
+      throw new Error('Identity key not found');
+    }
+
+    const signature = await SignalCrypto.signMessage(identityKey, nonce);
+
+    return { nonce, signature };
   }
 }

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
-from app.main import manager, db_pool, active_connections
+from app.internal.state import manager, db_pool
 from app.routes.auth import decode_websocket_token
-import json
 import base64
 from datetime import datetime
 import logging
@@ -53,7 +52,7 @@ async def websocket_endpoint(
             await handle_message(user_id, data)
 
     except WebSocketDisconnect:
-        manager.disconnect(user_id)
+        await manager.disconnect(user_id)
 
 
 async def handle_message(sender_id: str, data: dict):

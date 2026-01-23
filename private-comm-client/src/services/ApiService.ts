@@ -20,15 +20,35 @@ export interface AuthTokenResponse {
   expires_in: number;
 }
 
+export interface AuthTokenRequest {
+  phone_hash: string;
+  nonce: string;
+  signature: string;
+}
+
+export interface TurnCredentialsResponse {
+  urls: string[];
+  username: string;
+  credential: string;
+  ttl?: number;
+}
+
 class ApiService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = Platform.select({
-      ios: 'http://localhost:8000',
-      android: 'http://10.0.2.2:8000',
-      default: 'http://localhost:8000',
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
+    const protocol = isProduction ? 'https' : 'http';
+    const wsProtocol = isProduction ? 'wss' : 'ws';
+    const apiHost = isProduction
+      ? 'your-domain.com'
+      : Platform.select({
+          ios: 'localhost:8000',
+          android: '10.0.2.2:8000',
+          default: 'localhost:8000',
+        });
+
+    this.baseUrl = `${protocol}://${apiHost}`;
   }
 
   private async request<T>(
@@ -47,6 +67,9 @@ class ApiService {
 
     if (!response.ok) {
       const error = await response.text();
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`API request failed: ${response.status}`);
+      }
       throw new Error(`API request failed: ${response.status} ${error}`);
     }
 
@@ -78,10 +101,33 @@ class ApiService {
     });
   }
 
-  async getWebSocketToken(userId: string): Promise<AuthTokenResponse> {
-    return this.request<AuthTokenResponse>(`/api/v1/auth/token?user_id=${userId}`, {
+  async getWebSocketToken(
+    phoneHash: string,
+    nonce: string,
+    signature: string
+  ): Promise<AuthTokenResponse> {
+    return this.request<AuthTokenResponse>('/api/v1/auth/token', {
       method: 'POST',
+      body: JSON.stringify({
+        phone_hash: phoneHash,
+        nonce,
+        signature,
+      }),
     });
+  }
+
+  async getTurnCredentials(): Promise<TurnCredentialsResponse> {
+    try {
+      return await this.request<TurnCredentialsResponse>('/api/v1/turn-credentials', {
+        method: 'GET',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`Failed to fetch TURN credentials`);
+      }
+      throw new Error(`Failed to fetch TURN credentials from server: ${message}`);
+    }
   }
 
   setBaseUrl(url: string): void {

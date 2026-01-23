@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules } from 'react-native';
 
 const { AesCrypto } = NativeModules;
 
@@ -11,8 +11,6 @@ interface AesCryptoModule {
 declare global {
   var AesCrypto: AesCryptoModule;
 }
-
-const SESSION_ENCRYPTION_KEY = 'privcomm_session_key_v1';
 
 let encryptionKey: string | null = null;
 

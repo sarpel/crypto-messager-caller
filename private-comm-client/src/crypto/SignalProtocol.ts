@@ -3,8 +3,21 @@ import * as Keychain from 'react-native-keychain';
 import SQLite from 'react-native-sqlite-storage';
 import { encryptData, decryptData } from './cryptoUtils';
 import { SignalCrypto, isNativeModule } from './SignalCryptoBridge';
+import Logger from '../utils/Logger';
 
 const DB_NAME = 'privcomm_sessions.db';
+
+class PrekeyIdCounter {
+  private static counter = Date.now();
+
+  static nextId(): number {
+    return this.counter++;
+  }
+
+  static reset(): void {
+    this.counter = Date.now();
+  }
+}
 
 interface SignalCryptoModule {
   generateIdentityKeyPair(): Promise<{ publicKey: string; privateKey: string }>;
@@ -70,6 +83,7 @@ class DecryptionError extends Error {
 class SignalProtocolManager {
   private sessionStore: Map<string, string> = new Map();
   private dbInitialized = false;
+  private maintenanceInterval: ReturnType<typeof setInterval> | null = null;
 
   private async initDB(): Promise<void> {
     if (this.dbInitialized) {
@@ -94,9 +108,9 @@ class SignalProtocolManager {
 
       await this.loadSessions();
       this.dbInitialized = true;
-      console.log('Signal protocol sessions database initialized');
+      Logger.info('Signal protocol sessions database initialized');
     } catch (error) {
-      console.error('Failed to initialize sessions database:', error);
+      Logger.error('Failed to initialize sessions database:', error);
       throw error;
     }
   }
@@ -105,18 +119,26 @@ class SignalProtocolManager {
     try {
       const [results] = await SQLite.executeSql('SELECT * FROM sessions');
 
-      for (const row of results.rows.raw()) {
+      const sessionPromises = results.rows.raw().map(async (row) => {
         try {
           const decrypted = await decryptData(row.session_data);
-          this.sessionStore.set(row.recipient_id, decrypted);
+          return { recipientId: row.recipient_id, session: decrypted };
         } catch (error) {
-          console.error(`Failed to decrypt session for ${row.recipient_id}:`, error);
+          Logger.error(`Failed to decrypt session for ${row.recipient_id}:`, error);
+          return null;
+        }
+      });
+
+      const sessions = await Promise.all(sessionPromises);
+      for (const s of sessions) {
+        if (s) {
+          this.sessionStore.set(s.recipientId, s.session);
         }
       }
 
-      console.log(`Loaded ${results.rows.length} sessions from database`);
+      Logger.info(`Loaded ${results.rows.length} sessions from database`);
     } catch (error) {
-      console.error('Failed to load sessions:', error);
+      Logger.error('Failed to load sessions:', error);
     }
   }
 
@@ -133,7 +155,7 @@ class SignalProtocolManager {
         [recipientId, encrypted]
       );
     } catch (error) {
-      console.error(`Failed to save session for ${recipientId}:`, error);
+      Logger.error(`Failed to save session for ${recipientId}:`, error);
     }
   }
 
@@ -170,7 +192,7 @@ class SignalProtocolManager {
       throw new Error('SignalCrypto module not available');
     }
 
-    const keyId = Math.floor(Math.random() * 0xFFFFFF);
+    const keyId = PrekeyIdCounter.nextId();
     const result = await SignalCrypto.generateSignedPreKey(identityPrivateKey, keyId);
 
     await Keychain.setGenericPassword(
@@ -195,18 +217,29 @@ class SignalProtocolManager {
     }
 
     const preKeys: Array<{ keyId: number; publicKey: string }> = [];
+    const BATCH_SIZE = 10; // Process in batches to prevent UI blocking
 
-    for (let i = 0; i < count; i++) {
-      const keyId = Date.now() + i;
-      const keyPair = await SignalCrypto.generatePreKey(keyId);
+    for (let i = 0; i < count; i += BATCH_SIZE) {
+      const batch = [];
+      for (let j = 0; j < BATCH_SIZE && i + j < count; j++) {
+        const keyId = PrekeyIdCounter.nextId();
+        batch.push({ keyId });
+      }
 
-      await Keychain.setGenericPassword(
-        `onetime_prekey_${keyId}`,
-        keyPair.privateKey,
-        { service: 'privcomm_otpk' }
+      // Generate keys in parallel within batch
+      const batchResults = await Promise.all(
+        batch.map(async ({ keyId }) => {
+          const keyPair = await SignalCrypto.generatePreKey(keyId);
+          await Keychain.setGenericPassword(
+            `onetime_prekey_${keyId}`,
+            keyPair.privateKey,
+            { service: 'privcomm_otpk' }
+          );
+          return { keyId, publicKey: keyPair.publicKey };
+        })
       );
 
-      preKeys.push({ keyId, publicKey: keyPair.publicKey });
+      preKeys.push(...batchResults);
     }
 
     return preKeys;
@@ -301,7 +334,7 @@ class SignalProtocolManager {
   }
 
   async uploadPrekeysToServer(preKeys: Array<{ keyId: number; publicKey: string }>): Promise<void> {
-    const { apiService } = await import('./services/ApiService');
+    const { apiService } = await import('../services/ApiService');
     const userId = await Keychain.getGenericPassword({ service: 'privcomm_identity' });
 
     if (!userId) {
@@ -321,29 +354,45 @@ class SignalProtocolManager {
     const currentCount = await this.getAvailablePrekeyCount();
 
     if (currentCount < 20) {
-      console.log(`Prekey count low (${currentCount}), generating 100 more...`);
+      Logger.info(`Prekey count low (${currentCount}), generating 100 more...`);
       const newPreKeys = await this.generateOneTimePreKeys(100);
 
       try {
         await this.uploadPrekeysToServer(newPreKeys);
-        console.log(`Uploaded ${newPreKeys.length} new prekeys to server`);
+        Logger.info(`Uploaded ${newPreKeys.length} new prekeys to server`);
       } catch (error) {
-        console.error('Failed to upload prekeys:', error);
+        Logger.error('Failed to upload prekeys:', error);
         throw error;
       }
     } else {
-      console.log(`Prekey count OK: ${currentCount}`);
+      Logger.info(`Prekey count OK: ${currentCount}`);
     }
   }
 
   async startPrekeyMaintenance(): Promise<void> {
     const REFRESH_INTERVAL = 24 * 60 * 60 * 1000;
 
-    setInterval(() => {
-      this.checkAndRefillPrekeys();
+    // Clear any existing interval
+    this.stopPrekeyMaintenance();
+
+    this.maintenanceInterval = setInterval(() => {
+      this.checkAndRefillPrekeys().catch(err => {
+        Logger.error('Prekey maintenance failed:', err);
+      });
     }, REFRESH_INTERVAL);
 
-    await this.checkAndRefillPrekeys();
+    try {
+      await this.checkAndRefillPrekeys();
+    } catch (err) {
+      Logger.error('Initial prekey check failed:', err);
+    }
+  }
+
+  stopPrekeyMaintenance(): void {
+    if (this.maintenanceInterval) {
+      clearInterval(this.maintenanceInterval);
+      this.maintenanceInterval = null;
+    }
   }
 }
 

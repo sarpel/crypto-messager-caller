@@ -39,5 +39,6 @@ CREATE TABLE push_tokens (
 
 CREATE INDEX idx_pending_messages_recipient ON pending_messages(recipient_id);
 CREATE INDEX idx_pending_messages_delivery ON pending_messages(recipient_id, timestamp DESC);
+CREATE INDEX idx_pending_messages_timestamp ON pending_messages(timestamp);
 CREATE INDEX idx_one_time_prekeys_available ON one_time_prekeys(user_id, used) WHERE NOT used;
 CREATE INDEX idx_one_time_prekeys_fresh ON one_time_prekeys(user_id, created_at) WHERE NOT used;

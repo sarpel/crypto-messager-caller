@@ -1,11 +1,10 @@
+import { Platform } from 'react-native';
 import { EventEmitter } from 'events';
 import { apiService } from './ApiService';
+import Logger from '../utils/Logger';
+import type { WebSocketMessage } from '../types/WebSocketMessage';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
-export type WebSocketMessage = {
-  type: string;
-  [key: string]: any;
-};
 
 class WebSocketService extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -20,16 +19,25 @@ class WebSocketService extends EventEmitter {
 
   constructor() {
     super();
+    const isProduction = process.env.NODE_ENV === 'production';
+    const protocol = isProduction ? 'wss' : 'ws';
+    const apiHost = isProduction
+      ? 'your-domain.com'
+      : Platform.select({
+          ios: 'localhost:8000',
+          android: '10.0.2.2:8000',
+          default: 'localhost:8000/ws',
+        });
     this.url = Platform.select({
-      ios: 'ws://localhost:8000/ws',
-      android: 'ws://10.0.2.2:8000/ws',
-      default: 'ws://localhost:8000/ws',
+      ios: `${protocol}://localhost:8000/ws`,
+      android: `${protocol}://10.0.2.2:8000/ws`,
+      default: `${protocol}://localhost:8000/ws`,
     });
   }
 
   async connect(token: string): Promise<void> {
     if (this.state === 'connected') {
-      console.warn('WebSocket already connected');
+      Logger.warn('WebSocket already connected');
       return;
     }
 
@@ -43,7 +51,7 @@ class WebSocketService extends EventEmitter {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected');
+        Logger.info('WebSocket connected');
         this.state = 'connected';
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
@@ -52,7 +60,7 @@ class WebSocketService extends EventEmitter {
       };
 
       this.ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
+        Logger.info('WebSocket closed:', event.code, event.reason);
         this.state = 'disconnected';
         this.emit('disconnected', { code: event.code, reason: event.reason });
         this.emit('stateChange', this.state);
@@ -60,7 +68,7 @@ class WebSocketService extends EventEmitter {
         if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.scheduleReconnect();
         } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          console.error('Max reconnection attempts reached');
+          Logger.error('Max reconnection attempts reached');
           this.state = 'error';
           this.emit('permanentFailure');
           this.emit('stateChange', this.state);
@@ -68,7 +76,7 @@ class WebSocketService extends EventEmitter {
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        Logger.error('WebSocket error:', error);
         this.state = 'error';
         this.emit('error', error);
         this.emit('stateChange', this.state);
@@ -79,12 +87,12 @@ class WebSocketService extends EventEmitter {
           const message = JSON.parse(event.data) as WebSocketMessage;
           this.emit('message', message);
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
+          Logger.error('Failed to parse WebSocket message:', error);
         }
       };
 
     } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
+      Logger.error('Failed to connect WebSocket:', error);
       this.state = 'error';
       this.emit('error', error);
       this.emit('stateChange', this.state);
@@ -102,7 +110,7 @@ class WebSocketService extends EventEmitter {
     this.emit('reconnecting', { attempt: this.reconnectAttempts });
     this.emit('stateChange', this.state);
 
-    console.log(
+    Logger.info(
       `Reconnecting in ${this.reconnectDelay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
     );
 
@@ -120,14 +128,14 @@ class WebSocketService extends EventEmitter {
 
   send(message: WebSocketMessage): void {
     if (this.state !== 'connected' || !this.ws) {
-      console.warn('Cannot send message - WebSocket not connected');
+      Logger.warn('Cannot send message - WebSocket not connected');
       return;
     }
 
     try {
       this.ws.send(JSON.stringify(message));
     } catch (error) {
-      console.error('Failed to send WebSocket message:', error);
+      Logger.error('Failed to send WebSocket message:', error);
       this.emit('error', error);
     }
   }
@@ -162,7 +170,5 @@ class WebSocketService extends EventEmitter {
     return this.state === 'connected';
   }
 }
-
-import { Platform } from 'react-native';
 
 export const webSocketService = new WebSocketService();

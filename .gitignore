@@ -96,3 +96,4 @@ $RECYCLE.BIN/
 
 # Planning and AI agent files
 .planning/
+*.7z

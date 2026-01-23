@@ -1,16 +1,13 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
-from pydantic import BaseModel, validator, Field
-import asyncpg
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, validator, Field, model_validator
 from typing import List
 import base64
 import re
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+from app.internal import state
 
 limiter = Limiter(key_func=get_remote_address)
-router = APIRouter(prefix="/api/v1", tags=["registration"])
-
 router = APIRouter(prefix="/api/v1", tags=["registration"])
 
 
@@ -21,9 +18,19 @@ class RegisterRequest(BaseModel):
     prekey_signature: str
     one_time_prekeys: List[dict]
 
+    @model_validator(mode="after")
+    def validate_prekey_count(cls, data):
+        if hasattr(data, "one_time_prekeys"):
+            prekeys = getattr(data, "one_time_prekeys")
+            if len(prekeys) < 1:
+                raise ValueError("one_time_prekeys must have at least 1 entry")
+            if len(prekeys) > 200:
+                raise ValueError("one_time_prekeys cannot exceed 200 entries")
+        return data
+
     @validator("phone_hash")
     def validate_phone_hash(cls, v):
-        if not re.match(r"^[0-9a-f]{64}$", v):
+        if not re.match(r"^[0-9a-fA-F]{64}$", v):
             raise ValueError("phone_hash must be 64-char hex string")
         return v
 
@@ -46,9 +53,7 @@ class KeyBundleResponse(BaseModel):
 @router.post("/register")
 @limiter.limit("10/hour")
 async def register_user(request: Request, req: RegisterRequest):
-    from app.main import db_pool
-
-    async with db_pool.acquire() as conn:
+    async with state.db_pool.acquire() as conn:
         existing = await conn.fetchrow(
             "SELECT id FROM users WHERE phone_hash = $1", req.phone_hash
         )
@@ -100,9 +105,7 @@ async def register_user(request: Request, req: RegisterRequest):
 @router.get("/keys/{phone_hash}", response_model=KeyBundleResponse)
 @limiter.limit("5/minute")
 async def get_key_bundle(request: Request, phone_hash: str):
-    from app.main import db_pool
-
-    async with db_pool.acquire() as conn:
+    async with state.db_pool.acquire() as conn:
         user = await conn.fetchrow(
             """
             SELECT id, identity_key, signed_prekey, prekey_signature
@@ -116,18 +119,22 @@ async def get_key_bundle(request: Request, phone_hash: str):
 
         otpk = await conn.fetchrow(
             """
-            UPDATE one_time_prekeys
-            SET used = TRUE
-            WHERE id = (
-                SELECT id FROM one_time_prekeys
-                WHERE user_id = $1 AND NOT used
-                ORDER BY created_at
-                LIMIT 1
-            )
-            RETURNING key_id, public_key
+            SELECT id, key_id, public_key
+            FROM one_time_prekeys
+            WHERE user_id = $1 AND NOT used
+            ORDER BY created_at
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
         """,
             user["id"],
         )
+
+        if otpk:
+            await conn.execute(
+                "UPDATE one_time_prekeys SET used = TRUE WHERE id = $1", otpk["id"]
+            )
+        else:
+            otpk = None
 
         return {
             "identity_key": base64.b64encode(user["identity_key"]).decode(),
